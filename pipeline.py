@@ -157,7 +157,15 @@ def main():
                   f"(no size: the box never sat fully inside the frame)")
             continue
         L, Wd = np.median(st["sizes"], axis=0)
-        fs = np.median(st["flow_v"]) if st["flow_v"] else float("nan")
+        if st["flow_v"]:
+            fs = np.median(st["flow_v"])
+            fs_cell, fs_csv = f"{fs:>17.2f}", round(fs, 2)
+        else:
+            # The affine fit is only accepted with >= 8 RANSAC inliers, so a short or
+            # low-texture track never gets a measurement.  Say that, rather than
+            # printing a bare "nan" that looks like a bug.
+            fs = float("nan")
+            fs_cell, fs_csv = f"{'-':>10} (no flow fit)", ""
         ks = np.median(st["kf_v"][3:]) if len(st["kf_v"]) > 3 else float("nan")
         if st["votes"]:
             typ, k = Counter(st["votes"]).most_common(1)[0]
@@ -169,14 +177,19 @@ def main():
             typ, share = "n/a", float("nan")
             tail = ("n/a (track never reached the held-out tail, so any type here would be a self-match)"
                     if rec is not None and st["first"] < vote_from else "n/a (no held-out frames classified)")
-        print(f"{tid:>3} | {st['frames']:>6} | {L:>7.2f} x {Wd:<7.2f} | {fs:>17.2f} | {ks:>12.2f} | {tail}")
-        rows.append([tid, st["frames"], round(L, 2), round(Wd, 2), round(fs, 2),
+        print(f"{tid:>3} | {st['frames']:>6} | {L:>7.2f} x {Wd:<7.2f} | {fs_cell} | {ks:>12.2f} | {tail}")
+        rows.append([tid, st["frames"], round(L, 2), round(Wd, 2), fs_csv,
                      round(ks, 2) if not np.isnan(ks) else "", typ,
                      "" if np.isnan(share) else round(share, 2), len(st["votes"])])
     print("=" * 86)
     if rows:
-        allv = [r[4] for r in rows if not np.isnan(r[4])]
-        print(f"Belt speed (median over boxes, optical flow): {np.median(allv):.2f} cm/s")
+        # r[4] is a float for a real measurement and "" when no affine fit was accepted,
+        # so it has to be type-checked before np.isnan is allowed anywhere near it.
+        allv = [r[4] for r in rows if isinstance(r[4], (int, float)) and not np.isnan(r[4])]
+        nofit = sum(1 for r in rows if r[4] == "")
+        if allv:
+            print(f"Belt speed (median over boxes, optical flow): {np.median(allv):.2f} cm/s"
+                  f"   ({len(allv)} measured, {nofit} track(s) had no usable flow fit)")
     with open(OUT / "pipeline_results.csv", "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["id", "frames", "length_cm", "width_cm", "speed_flow_cm_s", "speed_kalman_cm_s",
