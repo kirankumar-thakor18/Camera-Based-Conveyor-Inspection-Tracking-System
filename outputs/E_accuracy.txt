@@ -1,0 +1,26 @@
+Held-out test crops: 62 | train crops: 94 | classes: ['cluster_0', 'cluster_1', 'cluster_2', 'cluster_3']
+
+Method                                             clean    rotated (random angle)           lighting change
+Alignment (SIFT+homography)                         0.0%                      0.0%                      0.0%
+Eigenboxes (PCA + 1-NN)                            67.7%                     51.6%                     50.0%
+Hu moments (nearest mean)                          43.5%                     41.9%                     45.2%
+
+Hu invariants (log10 scale, first 3) - one crop per type at several rotation angles:
+type                             rot 0 deg                  rot 45 deg                  rot 90 deg                 rot 137 deg
+cluster_0        [ 3.06  7.93 11.76]     [ 3.06  7.95 11.76]     [ 3.06  7.98 11.85]     [ 3.06  7.95 11.75]  
+cluster_1        [ 2.53  5.60  8.61]     [ 2.53  5.58  8.60]     [ 2.53  5.63  8.60]     [ 2.53  5.58  8.60]  
+cluster_2        [ 2.41  4.86 11.57]     [ 2.42  4.90 11.50]     [ 2.41  4.87 11.79]     [ 2.42  4.90 11.46]  
+cluster_3        [ 2.40  4.85 11.39]     [ 2.41  4.88 11.36]     [ 2.40  4.86 11.61]     [ 2.41  4.88 11.29]  
+
+ROBUSTNESS NOTES (derived from the table above, not written by hand):
+  * Most robust to rotated (random angle): Eigenboxes (PCA + 1-NN) (51.6%). Worst: Alignment (SIFT+homography) (0.0%).
+  * Most robust to lighting change       : Eigenboxes (PCA + 1-NN) (50.0%). Worst: Alignment (SIFT+homography) (0.0%).
+  * Why: eigenboxes compare raw grey pixels in a fixed pose, so rotation and a gain/offset both
+    shift the vector PCA is built on - it has no normalisation to absorb either.  Alignment
+    (SIFT + homography) models pose explicitly and its descriptors are rotation-invariant, so it
+    trades a little accuracy for the best rotation score but needs enough texture to find keypoints.
+    Hu moments are rotation-invariant by construction yet only encode coarse shape/intensity
+    distribution, so they separate boxes that differ in aspect ratio and struggle on boxes that
+    differ only in colour or a printed label.
+  * Re-run with --test-frac to see these numbers move; they depend on your crops, so quote the
+    table above rather than these sentences in your write-up.

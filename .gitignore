@@ -3,9 +3,9 @@ __pycache__/
 *.py[cod]
 *.so
 
-# Generated results - regenerate by running the modules, never hand-edit or commit
-outputs/*
-!outputs/.gitkeep
+# Generated results - committed because they ARE the deliverable. Never hand-edit them;
+# re-run the modules to regenerate (see README "How to run").
+# The source clip and the derived crops stay out: they are large and reproducible.
 
 # Real footage and calibration - large, and reproduced from the dataset / your own capture
 data/conveyor.mp4
