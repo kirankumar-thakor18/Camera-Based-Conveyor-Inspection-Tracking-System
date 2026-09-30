@@ -1,13 +1,25 @@
 # Getting the data
 
 The assignment requires *real footage, not synthetic renders*, so nothing in this repo generates
-video. Two paths. **Either way you still shoot the checkerboard** — no public conveyor dataset
-publishes camera intrinsics, so Module B's `cv2.calibrateCamera` stage always needs your own 15
-photos. See `data/checkerboard/PRINT_AND_SHOOT.md` for the printing and shooting recipe.
+video. **Either way you still shoot the checkerboard** — no public conveyor dataset publishes camera
+intrinsics, so Module B's `cv2.calibrateCamera` stage always needs your own 15 photos. See
+`data/checkerboard/PRINT_AND_SHOOT.md` for the printing and shooting recipe.
+
+## Which clip produced the numbers in this repo
+
+`data/conveyor.mp4` — 1920×1080, H.264, 50 fps, 402 frames, 8.0 s, fixed camera. It is a real public
+conveyor clip, and it is **not** ZeroWaste: ZeroWaste was never downloaded here (no `data/zerowaste/`,
+`data/zerowaste_gt/` or `data/zerowaste_crops/`), and this clip's 50 fps / 8 s length matches neither
+ZeroWaste's 120 fps capture nor its 12 fps annotated replay. Its exact source is still uncredited —
+**fill in the URL and licence before you submit this.**
+
+Because that clip carries no labels, Module E's class folders are unsupervised shape clusters rather
+than real material types, and Module A cannot be scored against ground-truth masks. The zero-waste
+path below fixes both of those and is worth switching to if you have the disk space and the time.
 
 ---
 
-## Path 1 — ZeroWaste (the dataset used for this submission)
+## Path 1 — ZeroWaste (documented, not used for the numbers above)
 
 [ZeroWaste (CVPR 2022)](https://doi.org/10.5281/zenodo.6269104) is footage of a real paper-sorting
 conveyor at a Materials Recovery Facility in Massachusetts. Licensed CC-BY-4.0.
