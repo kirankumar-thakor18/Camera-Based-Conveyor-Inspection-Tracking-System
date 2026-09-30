@@ -110,6 +110,20 @@ number, and quoting it in the demo is what makes the estimate convincing instead
 2. `unknown_box.jpg` — a different box alone on the belt, same framing.
 3. A few seconds of **only the empty belt**, so `estimate_background` has clean pixels.
 
+### Check the clip before you build anything on it
+
+```bash
+python tools/inspect_video.py data/conveyor.mp4
+```
+
+This reads only the video. It reports camera shake (estimated from ORB matches on the *background*
+only, so a moving box cannot be mistaken for camera motion), how much of the frame changes per frame,
+whether the clip is long enough that boxes survive into the held-out tail, and flags HEVC-in-`.MOV`
+clips that OpenCV cannot decode.
+
+If it says `re-shoot recommended`, the verdict is worth acting on — a median-background segmenter
+cannot recover from camera movement, and every downstream number inherits the error.
+
 ---
 
 ## 3. Build the Module E crop set

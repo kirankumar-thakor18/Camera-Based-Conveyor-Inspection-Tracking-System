@@ -84,6 +84,17 @@ object — which makes a defensible reference; cardboard boxes then play the rol
 checkerboard list, the conveyor shot list, the Module E crop-sorting step, the run commands, and the
 demo checklist.
 
+Validate the clip before building anything on it:
+
+```bash
+python tools/inspect_video.py data/conveyor.mp4
+```
+
+It checks camera shake (from ORB matches restricted to the background, so box motion is not mistaken
+for camera motion), foreground signal, clip length against the 60/40 split, frame rate, and whether
+OpenCV can decode the container at all. It cannot judge the reference object, touching boxes or type
+diversity — those it lists for you to confirm by eye.
+
 This is the only path where Module B's calibration, Module C's cm/s and the known-size reference box
 all come from one consistent camera, so every number in the report is mutually consistent. Roughly
 15 minutes of work.

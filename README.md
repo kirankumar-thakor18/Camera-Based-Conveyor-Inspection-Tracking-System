@@ -14,7 +14,12 @@ pip install -r requirements.txt
 python tools/make_checkerboard.py     # prints a 9x6-inner-corner board to data/checkerboard/
 ```
 
-Place the real clip at `data/conveyor.mp4` and 15 checkerboard photos in `data/checkerboard/`.
+Place the real clip at `data/conveyor.mp4` and 15 checkerboard photos in `data/checkerboard/`, then
+check the clip before relying on it:
+
+```bash
+python tools/inspect_video.py data/conveyor.mp4
+```
 
 ## How to run
 
