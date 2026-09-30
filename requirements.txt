@@ -1,0 +1,7 @@
+numpy
+scipy
+opencv-python>=4.5
+scikit-image>=0.20
+scikit-learn
+matplotlib
+jupyter   # only for the Module A notebook

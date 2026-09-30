@@ -1,0 +1,36 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.so
+
+# Generated results - regenerate by running the modules, never hand-edit or commit
+outputs/*
+!outputs/.gitkeep
+
+# Real footage and calibration - large, and reproduced from the dataset / your own capture
+data/conveyor.mp4
+data/zerowaste/
+data/zerowaste_gt/
+data/zerowaste_crops/
+# NB: this also hides the locally generated checkerboard_9x6.png. That is intended -
+# the .pdf is committed, and tools/make_checkerboard.py regenerates the .png.
+data/checkerboard/*.png
+data/checkerboard/*.jpg
+!data/checkerboard/checkerboard_9x6.pdf
+module_B_calibration/calibration.npz
+module_E_recognition/crops/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+.*/.ipynb_checkpoints/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+~$*
+
+# Archives
+*.zip
