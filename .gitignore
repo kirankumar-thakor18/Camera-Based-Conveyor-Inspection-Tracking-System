@@ -34,3 +34,6 @@ Thumbs.db
 
 # Archives
 *.zip
+# annotated frames of the dataset clip - regenerate locally, do not commit
+reference_grid.png
+reference_marked.png

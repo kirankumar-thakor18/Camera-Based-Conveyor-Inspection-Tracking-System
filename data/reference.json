@@ -1,0 +1,23 @@
+{
+  "video": "conveyor.mp4",
+  "frame": 200,
+  "object_id": 4,
+  "bbox_xywh": [
+    640,
+    800,
+    357,
+    218
+  ],
+  "bbox_wh_px": [
+    357,
+    218
+  ],
+  "real_cm_wh": [
+    30.0,
+    20.0
+  ],
+  "px_per_cm_x": 11.9,
+  "px_per_cm_y": 10.9,
+  "px_per_cm_mean": 11.4,
+  "anisotropy": 1.092
+}

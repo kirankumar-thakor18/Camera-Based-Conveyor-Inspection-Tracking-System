@@ -142,14 +142,30 @@ def main():
     ap.add_argument("--unk-angle", type=float, default=0.0, help="image-plane rotation of the unknown box (deg)")
     ap.add_argument("--ref-height", type=float, default=0.0, help="height of reference top face above belt (cm)")
     ap.add_argument("--unk-height", type=float, default=None, help="height of the unknown top face (default = ref)")
+    ap.add_argument("--px-per-cm", type=float, default=None,
+                    help="fallback when calibration.npz is absent, for footage whose camera was "
+                         "never calibrated. Only the two scale-free models can run: orthographic "
+                         "and affine. Weak perspective needs the focal length and full perspective "
+                         "needs K, R and t, so they are reported as unavailable rather than "
+                         "estimated.")
     a = ap.parse_args()
 
     c = load_calibration(a.calib)
-    if c is None:
-        sys.exit("Run calibrate.py first (calibration.npz not found).")
-    K, R, t = c["K"], c["belt_R"], c["belt_t"]
-    f = 0.5 * (K[0, 0] + K[1, 1])
-    ctr = (K[0, 2], K[1, 2])
+    if c is None and a.px_per_cm is None:
+        sys.exit("Run calibrate.py first (calibration.npz not found), or pass --px-per-cm "
+                 "to run only the scale-free models.")
+    K = R = t = None
+    if c is not None:
+        K, R, t = c["K"], c["belt_R"], c["belt_t"]
+        f = 0.5 * (K[0, 0] + K[1, 1])
+        ctr = (K[0, 2], K[1, 2])
+    else:
+        f = float("nan")
+        ctr = (0.0, 0.0)
+        print("[B] NO calibration.npz - running the scale-free models only.")
+        print("    Weak perspective needs the focal length f and full perspective needs K, R, t,")
+        print("    so both are unavailable here. Orthographic and affine below are still real")
+        print("    measurements: they use the reference object's own pixels against its known size.")
     rc = a.ref_center or ctr
     uc = a.unk_center or ctr
     hu = a.ref_height if a.unk_height is None else a.unk_height
@@ -161,9 +177,12 @@ def main():
     s = float(ref_px @ ref_cm / (ref_cm @ ref_cm))
     res["orthographic"] = unk_px / s
     # 2 weak perspective: s = f / Z_avg, Z_avg = depth of the unknown box centre (top face)
-    n, d = plane_at_height(R, t, hu)
-    Zavg = pixels_to_plane(K, n, d, [uc])[0, 2]
-    res["weak perspective"] = unk_px * Zavg / f
+    if c is not None:
+        n, d = plane_at_height(R, t, hu)
+        Zavg = pixels_to_plane(K, n, d, [uc])[0, 2]
+        res["weak perspective"] = unk_px * Zavg / f
+    else:
+        res["weak perspective"] = np.array([np.nan, np.nan])
     # 3 affine: full 2x2 linear part fitted on the 4 reference corners.  The reference box is
     #    axis-aligned in ITS OWN cm frame but may appear rotated in the image (--ref-angle); that
     #    rotation and any shear/anisotropy land in A, and the unknown box is mapped back through
@@ -171,10 +190,11 @@ def main():
     A = fit_affine_scale(rect_corners((0.0, 0.0), ref_cm), rect_corners(rc, ref_px, a.ref_angle), rc)
     res["affine"] = affine_size_cm(A, rect_corners(uc, unk_px, a.unk_angle))
     # 4 full perspective (needs K, R, t and the top-face height)
-    L, S = size_perspective(K, R, t, rect_corners(uc, unk_px, a.unk_angle), hu)
-    res["full perspective"] = np.array([L, S])
+    res["full perspective"] = (np.array([np.nan, np.nan]) if c is None else
+                               size_perspective(K, R, t, rect_corners(uc, unk_px, a.unk_angle), hu))
 
-    print(f"f = {f:.1f} px | reference: {ref_px} px = {ref_cm} cm | unknown: {unk_px} px | Z_avg = {Zavg:.1f} cm")
+    ztxt = f"{Zavg:.1f}" if c is not None else "n/a"
+    print(f"f = {f:.1f} px | reference: {ref_px} px = {ref_cm} cm | unknown: {unk_px} px | Z_avg = {ztxt} cm")
     print(f"{'camera model':<18}{'long (cm)':>12}{'short (cm)':>12}")
     for k, v in res.items():
         print(f"{k:<18}{v[0]:>12.2f}{v[1]:>12.2f}")
@@ -207,14 +227,17 @@ def main():
 
     # Field of view: the assignment asks for the verdict "given the camera's ACTUAL field of view and
     # object distance", so state it in degrees instead of leaving the reader to work it out.
-    w_px, h_px = (c["image_size"] if "image_size" in c else (2 * ctr[0], 2 * ctr[1]))
-    fov_x = 2 * np.degrees(np.arctan((w_px / 2) / f))
-    fov_y = 2 * np.degrees(np.arctan((h_px / 2) / f))
-    dist = abs(R[:, 2] @ t)
-    covered_x = 2 * dist * np.tan(np.radians(fov_x / 2))
-    covered_y = 2 * dist * np.tan(np.radians(fov_y / 2))
-    print(f"  field of view {fov_x:.1f} deg x {fov_y:.1f} deg  ->  the belt plane spans roughly "
-          f"{covered_x:.0f} cm x {covered_y:.0f} cm at the {dist:.0f} cm camera distance")
+    if c is None:
+        print("  field of view / camera distance: unavailable without calibration.npz (needs f).")
+    else:
+        w_px, h_px = (c["image_size"] if "image_size" in c else (2 * ctr[0], 2 * ctr[1]))
+        fov_x = 2 * np.degrees(np.arctan((w_px / 2) / f))
+        fov_y = 2 * np.degrees(np.arctan((h_px / 2) / f))
+        dist = abs(R[:, 2] @ t)
+        covered_x = 2 * dist * np.tan(np.radians(fov_x / 2))
+        covered_y = 2 * dist * np.tan(np.radians(fov_y / 2))
+        print(f"  field of view {fov_x:.1f} deg x {fov_y:.1f} deg  ->  the belt plane spans roughly "
+              f"{covered_x:.0f} cm x {covered_y:.0f} cm at the {dist:.0f} cm camera distance")
 
     # DISCUSSION (2-3 sentences, as the assignment asks - read the numbers above, then make this your own):
     # Full perspective is the most accurate of the four because it is the only one that uses the
@@ -227,7 +250,8 @@ def main():
     # which is a modelling error and not a depth error; affine fixes that per-axis scaling but still
     # cannot express the foreshortening that height and depth introduce, which is the whole gap to
     # full perspective.
-    print(f"depth relief ratio (box height / camera distance) ~ {hu / dist:.3f}")
+    if c is not None:
+        print(f"depth relief ratio (box height / camera distance) ~ {hu / dist:.3f}")
 
 
 if __name__ == "__main__":
