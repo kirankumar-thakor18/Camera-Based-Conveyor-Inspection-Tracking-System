@@ -33,22 +33,58 @@ def open_capture(path):
     return cap, ""
 
 
-def camera_drift(frames_bgr, grays, sample_indices):
+def static_mask(grays, tol=25):
+    """Boolean mask of pixels that never change across the sampled frames.
+
+    A conveyor belt is usually textured, and that texture scrolls past a bolted-down camera. ORB
+    therefore finds plenty of high-quality keypoints that legitimately move, and a homography fitted
+    to them reports tens of pixels of "camera drift" for footage where the camera never budges. On
+    data/conveyor.mp4 that mistake reads 49.95 px where the true drift is under 0.1 px.
+
+    A pixel counts as static only if it stays within `tol` grey levels of the median image across
+    EVERY sampled frame. A belt pixel fails this as soon as its texture has scrolled away; a wall,
+    frame rail or machine housing passes at every sample. Returns (mask, median_image).
+    """
+    stack = np.stack(grays).astype(np.int16)
+    med = np.median(stack, axis=0)
+    dev = np.abs(stack - med).max(axis=0)
+    return dev <= tol, med
+
+
+def camera_drift(grays, sample_indices, static):
     """Background-only camera motion, via ORB + RANSAC homography.
 
     Phase correlation is not usable here: on a large uniform belt a moving box
     dominates the correlation surface and gets reported as a global shift, which
     produces a confident and completely wrong verdict. Restricting to keypoints
-    that fall on the median-image background removes the moving objects from the
-    estimate entirely.
+    that fall on pixels the median-image background says never change removes both the moving
+    objects AND the scrolling belt texture from the estimate.
+
+    `static` is the boolean mask from static_mask(). Keypoints are kept only where BOTH the base
+    frame's and the current frame's keypoint land on a static pixel, so a match cannot pair one
+    fixed surface with one scrolling patch of belt.
 
     Returns (median_drift_px, n_samples_used). Fewer than 8 usable samples means
     the footage cannot answer the question, which is reported as uncertainty
     rather than guessed at.
     """
+    h, w = static.shape
+
+    def keep_static(kp, des):
+        if des is None or len(kp) == 0:
+            return [], None
+        pts = np.array([k.pt for k in kp], np.float32)
+        xi = np.clip(pts[:, 0].astype(int), 0, w - 1)
+        yi = np.clip(pts[:, 1].astype(int), 0, h - 1)
+        keep = static[yi, xi]
+        if keep.sum() == 0:
+            return [], None
+        return [k for k, ok in zip(kp, keep) if ok], des[keep]
+
     orb = cv2.ORB_create(nfeatures=1500)
     base_gray = grays[0]
     base_kp, base_des = orb.detectAndCompute(base_gray, None)
+    base_kp, base_des = keep_static(base_kp, base_des)
     if base_des is None or len(base_kp) < 30:
         return 0.0, 0
 
@@ -56,6 +92,7 @@ def camera_drift(frames_bgr, grays, sample_indices):
     drifts = []
     for i in sample_indices[1:]:
         kp, des = orb.detectAndCompute(grays[i], None)
+        kp, des = keep_static(kp, des)
         if des is None or len(kp) < 10:
             continue
         knn = matcher.knnMatch(base_des, des, k=2)
@@ -113,7 +150,6 @@ def main():
         sys.exit("  ERROR: video reports zero frames")
     idx = np.unique(np.linspace(0, n - 1, n).astype(int))
 
-    bgrs = []
     grays = []
     i = 0
     want = set(idx.tolist())
@@ -122,7 +158,6 @@ def main():
         if not ok:
             break
         if i in want:
-            bgrs.append(fr)
             grays.append(cv2.cvtColor(fr, cv2.COLOR_BGR2GRAY))
         i += 1
     cap.release()
@@ -135,7 +170,8 @@ def main():
     fg = [np.count_nonzero(np.abs(g.astype(np.int16) - median) > 30) / g.size for g in stack]
     fg_pct = np.array(fg) * 100
 
-    drift_px, n_drift = camera_drift(bgrs, grays, range(len(grays)))
+    static, _ = static_mask(grays)
+    drift_px, n_drift = camera_drift(grays, range(len(grays)), static)
 
     comps = []
     for g in stack:
@@ -180,7 +216,8 @@ def main():
               "         If a belt roller or floor marking has moved, the camera was not static.")
     else:
         check("camera is static", drift_px < 4.0,
-              f"median background shift {drift_px:.2f} px over {n_drift} sampled frames "
+              f"median background shift {drift_px:.2f} px over {n_drift} sampled frames, measured on "
+              f"{int(static.sum() * 100 / static.size)}% of the frame that never changes "
               f"(a handheld camera is 10-100x this)")
 
     print(f"\n  foreground blobs per frame: median {np.median(comps):.0f}, "

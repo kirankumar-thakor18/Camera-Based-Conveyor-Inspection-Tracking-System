@@ -27,23 +27,47 @@ from common import OUT, ROOT
 np.set_printoptions(precision=4, suppress=True)
 
 
+# make_checkerboard.py writes the printable board into the same folder the photos go in, and it is a
+# perfect frontal render at its own resolution: keeping it would mix two image resolutions into one
+# calibrateCamera call and contribute a tilt-free view.  Photos only.
+GENERATED = {"checkerboard_9x6.png", "checkerboard_9x6.pdf", "reference_marked.png"}
+
+
 def find_corners(paths, pattern):
     crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 40, 1e-3)
-    good, pts, size = [], [], None
+    found = []                                  # (path, (w, h), refined corners)
     for p in paths:
+        if p.name.lower() in GENERATED:
+            print(f"  [skip] {p.name} - generated printable board, not a camera photo")
+            continue
         img = cv2.imread(str(p))
         if img is None:
             continue
         g = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         ok, c = cv2.findChessboardCorners(g, pattern, cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE)
         if ok:
-            good.append(p)
-            # size must come from an image that ACTUALLY yielded corners: mixing resolutions would
-            # otherwise hand cv2.calibrateCamera an image size that no detection belongs to.
-            size = g.shape[::-1]
-            pts.append(cv2.cornerSubPix(g, c, (11, 11), (-1, -1), crit))
+            found.append((p, g.shape[::-1], cv2.cornerSubPix(g, c, (11, 11), (-1, -1), crit)))
         else:
             print(f"  [skip] no checkerboard found in {p.name}")
+
+    if not found:
+        return [], [], None
+
+    # cv2.calibrateCamera needs ONE image size for the whole set, and it must come from an image that
+    # actually yielded corners.  Take the resolution most shots agree on, not the first one seen: a
+    # single stray file sorting first would otherwise reject every good capture.
+    counts = {}
+    for _, s, _ in found:
+        counts[s] = counts.get(s, 0) + 1
+    size = max(counts, key=lambda k: counts[k])
+    good, pts = [], []
+    for p, s, c in found:
+        if s != size:
+            print(f"  [skip] {p.name} - {s[0]}x{s[1]} px, but {counts[size]} of {len(found)} detected "
+                  f"shots are {size[0]}x{size[1]} px")
+            continue
+        good.append(p)
+        pts.append(c)
     return good, pts, size
 
 
@@ -77,7 +101,8 @@ def main():
     cols, rows = map(int, a.pattern.lower().split("x"))
     pattern = (cols, rows)
     sq_cm = a.square_mm / 10.0  # all real-world units in CENTIMETRES
-    paths = sorted([p for p in Path(a.images).iterdir() if p.suffix.lower() in (".jpg", ".jpeg", ".png")])
+    paths = sorted([p for p in Path(a.images).iterdir()
+                    if p.suffix.lower() in (".jpg", ".jpeg", ".png") and p.name.lower() not in GENERATED])
     if len(paths) < 10:
         print(f"  [warn] only {len(paths)} image file(s) in {a.images}; the assignment asks for 10-15 "
               f"photos of the board from different angles.")

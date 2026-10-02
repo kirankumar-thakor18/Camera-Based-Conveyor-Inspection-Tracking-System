@@ -37,6 +37,26 @@ Shoot these with **the same phone you will film the conveyor with** (Module B re
 
 Put these in `data/checkerboard/`:
 
+### Easiest: let the tool shoot for you
+
+`tools/shoot_checkerboard.py` drives the camera and saves the shots for you. It watches the live
+preview and only saves when the board is **found, large enough, sharp, and a viewpoint you have not
+already taken** — which is exactly the set of rules people get wrong by hand.
+
+```bash
+python tools/shoot_checkerboard.py --camera 0
+```
+
+It asks for the first shot as *lay the board flat on the belt* (saved as `belt_00.png`, the view that
+defines the belt plane), then two more flat square-on shots at different distances, then it switches
+to asking for a new tilt or roll each time. Keys: `SPACE` save anyway, `g` guide, `d` undo, `r`
+reset, `q` quit.
+
+It saves the **raw** camera frame, never the annotated preview, so the overlays cannot corrupt the
+corners. When it exits it prints the exact `calibrate.py` command to run next.
+
+### If you would rather shoot by hand
+
 | Shot | How to hold the board | Why |
 |---|---|---|
 | `belt_00.png` … | **lying FLAT on the belt/table**, filling most of the frame | this is `--belt-image`: its pose defines the belt plane that every cm value is measured against |
